@@ -124,7 +124,7 @@ def add_metric(name: str, category: str = "Personal", weekly_target: int = 0):
                 "Category": {"select": {"name": category}},
                 "Month": {"select": {"name": month_name}},
                 "Monthly Target": {"number": monthly_target},
-                **{str(d): {"checkbox": False} for d in range(1, 32)},
+                **{f"{d:02d}": {"checkbox": False} for d in range(1, 32)},
                 "Streak": {"number": 0},
             },
         )

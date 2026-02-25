@@ -136,7 +136,7 @@ def create_tracker_database(parent_id: str) -> tuple[str, str]:
 
     # Step 1: Base properties + day columns 1-31
     print("  Adding base properties + day columns 1-31...")
-    day_props = {str(d): {"checkbox": {}} for d in range(1, 32)}
+    day_props = {f"{d:02d}": {"checkbox": {}} for d in range(1, 32)}
     api_call(
         notion.data_sources.update,
         data_source_id=ds_id,
@@ -152,7 +152,7 @@ def create_tracker_database(parent_id: str) -> tuple[str, str]:
 
     # Step 2: Days Done formula
     print("  Adding Days Done formula...")
-    days_done_parts = [f'if(prop("{d}"), 1, 0)' for d in range(1, 32)]
+    days_done_parts = [f'if(prop("{d:02d}"), 1, 0)' for d in range(1, 32)]
     days_done_expr = " + ".join(days_done_parts)
     api_call(
         notion.data_sources.update,
@@ -273,7 +273,7 @@ def populate_tracker(tracker_db_id: str, tracker_ds_id: str, metrics: list):
                 "Category": {"select": {"name": metric["category"]}},
                 "Month": {"select": {"name": month_name}},
                 "Monthly Target": {"number": monthly_target},
-                **{str(d): {"checkbox": False} for d in range(1, 32)},
+                **{f"{d:02d}": {"checkbox": False} for d in range(1, 32)},
                 "Streak": {"number": 0},
             },
         )

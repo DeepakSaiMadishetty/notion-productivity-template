@@ -89,7 +89,7 @@ def compute_daily_scores(pages):
         for day in range(1, num_days + 1):
             d = date(YEAR, month_num, day)
             date_str = d.isoformat()
-            checked = props.get(str(day), {}).get("checkbox", False)
+            checked = props.get(f"{day:02d}", {}).get("checkbox", False)
             daily_total[date_str] += 1
             if checked:
                 daily_completed[date_str] += 1
