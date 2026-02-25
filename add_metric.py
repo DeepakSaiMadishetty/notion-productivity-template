@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Add a new metric and auto-create all weekly tracker entries for the year.
+Add a new metric and auto-create all 12 monthly tracker entries.
 
 Usage:
     python add_metric.py "Drink Water" --category Health --target 7
@@ -8,10 +8,10 @@ Usage:
 """
 
 import argparse
+import calendar
 import json
 import sys
 import time
-from datetime import date, timedelta
 from notion_client import Client
 
 with open("config.json") as f:
@@ -19,7 +19,6 @@ with open("config.json") as f:
 
 notion = Client(auth=CONFIG["notion_api_key"])
 YEAR = CONFIG.get("year", 2026)
-DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
@@ -36,42 +35,12 @@ def api_call(func, *args, retries=3, **kwargs):
         except Exception as e:
             err_str = str(e)
             if attempt < retries - 1 and ("502" in err_str or "429" in err_str or "503" in err_str):
-                wait = 2 ** (attempt + 1)
-                print(f"    Retry {attempt+1} after {wait}s...")
-                time.sleep(wait)
+                time.sleep(2 ** (attempt + 1))
             else:
                 raise
 
 
-def get_weeks(year: int):
-    jan1 = date(year, 1, 1)
-    first_monday = jan1 - timedelta(days=jan1.weekday())
-    weeks = []
-    monday = first_monday
-    week_num = 1
-    while True:
-        sunday = monday + timedelta(days=6)
-        if monday.year > year:
-            break
-        thursday = monday + timedelta(days=3)
-        if thursday.year < year:
-            month_num = 1
-        elif thursday.year > year:
-            month_num = 12
-        else:
-            month_num = thursday.month
-        weeks.append({
-            "week_num": week_num,
-            "month_name": MONTHS[month_num - 1],
-            "label": f"{monday.strftime('%b %d')} - {sunday.strftime('%b %d')}",
-            "week_key": f"W{week_num:02d}",
-        })
-        week_num += 1
-        monday += timedelta(days=7)
-    return weeks
-
-
-def add_metric(name: str, category: str = "Personal", target: int = 0):
+def add_metric(name: str, category: str = "Personal", weekly_target: int = 0):
     metrics_db_id = CONFIG.get("metrics_db_id")
     tracker_db_id = CONFIG.get("tracker_db_id")
     metrics_ds_id = CONFIG.get("metrics_ds_id")
@@ -92,14 +61,14 @@ def add_metric(name: str, category: str = "Personal", target: int = 0):
         sys.exit(1)
 
     # Add to My Metrics database
-    print(f"Adding metric: {name} (category={category}, target={target})")
+    print(f"Adding metric: {name} (category={category}, weekly_target={weekly_target})")
     api_call(
         notion.pages.create,
         parent={"database_id": metrics_db_id},
         properties={
             "Name": {"title": [{"text": {"content": name}}]},
             "Category": {"select": {"name": category}},
-            "Weekly Target": {"number": target},
+            "Weekly Target": {"number": weekly_target},
             "Active": {"checkbox": True},
         },
         children=[
@@ -119,8 +88,8 @@ def add_metric(name: str, category: str = "Personal", target: int = 0):
     )
     print(f"  Added to My Metrics.")
 
-    # Check which tracker entries already exist for this metric
-    existing_weeks = set()
+    # Check which months already have entries
+    existing_months = set()
     cursor = None
     while True:
         kwargs = {
@@ -132,46 +101,43 @@ def add_metric(name: str, category: str = "Personal", target: int = 0):
             kwargs["start_cursor"] = cursor
         resp = api_call(notion.data_sources.query, **kwargs)
         for page in resp["results"]:
-            week_sel = page["properties"].get("Week", {}).get("select")
-            if week_sel:
-                existing_weeks.add(week_sel["name"])
+            month_sel = page["properties"].get("Month", {}).get("select")
+            if month_sel:
+                existing_months.add(month_sel["name"])
         if not resp.get("has_more"):
             break
         cursor = resp["next_cursor"]
 
-    # Create weekly tracker entries
-    weeks = get_weeks(YEAR)
-    needed = [w for w in weeks if w["week_key"] not in existing_weeks]
-    total = len(needed)
-    print(f"  Creating {total} tracker entries ({len(existing_weeks)} already exist)...")
+    needed = [m for m in MONTHS if m not in existing_months]
+    print(f"  Creating {len(needed)} monthly tracker entries...")
 
-    for i, week in enumerate(needed, 1):
+    for i, month_name in enumerate(needed, 1):
+        month_num = MONTHS.index(month_name) + 1
+        num_days = calendar.monthrange(YEAR, month_num)[1]
+        monthly_target = round(weekly_target * num_days / 7) if weekly_target else 0
+
         api_call(
             notion.pages.create,
             parent={"database_id": tracker_db_id},
             properties={
                 "Metric": {"title": [{"text": {"content": name}}]},
                 "Category": {"select": {"name": category}},
-                "Month": {"select": {"name": week["month_name"]}},
-                "Week": {"select": {"name": week["week_key"]}},
-                "Week Dates": {"rich_text": [{"text": {"content": week["label"]}}]},
-                **{d: {"checkbox": False} for d in DAY_NAMES},
-                "Weekly Target": {"number": target},
+                "Month": {"select": {"name": month_name}},
+                "Monthly Target": {"number": monthly_target},
+                **{str(d): {"checkbox": False} for d in range(1, 32)},
                 "Streak": {"number": 0},
             },
         )
-        if i % 10 == 0:
-            print(f"  Progress: {i}/{total}")
+        print(f"  + {month_name}")
 
-    print(f"\nDone! '{name}' added with {total} weekly entries.")
-    print("Open your Notion page and filter by the current week to see it.")
+    print(f"\nDone! '{name}' added with {len(needed)} monthly entries.")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Add a new metric to the productivity tracker.")
     parser.add_argument("name", help="Name of the metric (e.g., 'Drink Water')")
     parser.add_argument("--category", default="Personal", choices=VALID_CATEGORIES,
-                        help="Category for the metric (default: Personal)")
+                        help="Category (default: Personal)")
     parser.add_argument("--target", type=int, default=0,
                         help="Weekly target in days (default: 0 = no target)")
     args = parser.parse_args()

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Delete a metric and all its weekly tracker entries.
+Delete a metric and all its monthly tracker entries.
 
 Usage:
     python delete_metric.py "Drink Water"
@@ -27,26 +27,23 @@ def api_call(func, *args, retries=3, **kwargs):
         except Exception as e:
             err_str = str(e)
             if attempt < retries - 1 and ("502" in err_str or "429" in err_str or "503" in err_str):
-                wait = 2 ** (attempt + 1)
-                print(f"    Retry {attempt+1} after {wait}s...")
-                time.sleep(wait)
+                time.sleep(2 ** (attempt + 1))
             else:
                 raise
 
 
 def fetch_all_pages(ds_id: str, filter_obj: dict) -> list:
-    """Fetch all pages from a data source, handling pagination."""
     pages = []
-    start_cursor = None
+    cursor = None
     while True:
         kwargs = {"data_source_id": ds_id, "filter": filter_obj, "page_size": 100}
-        if start_cursor:
-            kwargs["start_cursor"] = start_cursor
+        if cursor:
+            kwargs["start_cursor"] = cursor
         response = api_call(notion.data_sources.query, **kwargs)
         pages.extend(response["results"])
         if not response.get("has_more"):
             break
-        start_cursor = response["next_cursor"]
+        cursor = response["next_cursor"]
     return pages
 
 
@@ -58,21 +55,12 @@ def delete_metric(name: str):
         print("Error: Data source IDs not found in config.json. Run setup.py first.")
         sys.exit(1)
 
-    # Find metric in My Metrics
-    metric_pages = fetch_all_pages(
-        metrics_ds_id,
-        {"property": "Name", "title": {"equals": name}},
-    )
-
+    metric_pages = fetch_all_pages(metrics_ds_id, {"property": "Name", "title": {"equals": name}})
     if not metric_pages:
-        print(f"Error: Metric '{name}' not found in My Metrics database.")
+        print(f"Error: Metric '{name}' not found.")
         sys.exit(1)
 
-    # Find all tracker entries for this metric
-    tracker_pages = fetch_all_pages(
-        tracker_ds_id,
-        {"property": "Metric", "title": {"equals": name}},
-    )
+    tracker_pages = fetch_all_pages(tracker_ds_id, {"property": "Metric", "title": {"equals": name}})
 
     total = len(metric_pages) + len(tracker_pages)
     print(f"Found {len(metric_pages)} metric page(s) and {len(tracker_pages)} tracker entries.")
@@ -81,16 +69,11 @@ def delete_metric(name: str):
         print("Aborted.")
         sys.exit(0)
 
-    # Archive (soft-delete) all pages
     count = 0
-    for page in metric_pages:
+    for page in metric_pages + tracker_pages:
         api_call(notion.pages.update, page_id=page["id"], archived=True)
         count += 1
-
-    for page in tracker_pages:
-        api_call(notion.pages.update, page_id=page["id"], archived=True)
-        count += 1
-        if count % 10 == 0:
+        if count % 5 == 0:
             print(f"  Progress: {count}/{total}")
 
     print(f"\nDone! Archived {count} pages for '{name}'.")

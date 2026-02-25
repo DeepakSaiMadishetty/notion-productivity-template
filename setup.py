@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Productivity Tracker 2026 - Notion Setup Script
-Creates databases, populates weekly tracker entries, and builds page structure.
+Creates databases, populates monthly tracker entries, and builds page structure.
 
 Compatible with Notion API 2025-09-03 (notion-client 3.x).
 """
@@ -10,6 +10,7 @@ import json
 import sys
 import time
 from datetime import date, timedelta
+import calendar
 from notion_client import Client
 
 # ---------------------------------------------------------------------------
@@ -44,8 +45,6 @@ MONTH_COLORS = [
     "purple", "pink", "red", "default", "gray", "brown",
 ]
 
-DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-
 DEFAULT_METRICS = [
     {"name": "Exercise", "category": "Health", "target": 5},
     {"name": "Read 30 min", "category": "Learning", "target": 7},
@@ -53,6 +52,8 @@ DEFAULT_METRICS = [
     {"name": "Deep Work (4 hrs)", "category": "Work", "target": 5},
     {"name": "Journal", "category": "Personal", "target": 7},
 ]
+
+DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -75,53 +76,15 @@ def api_call(func, *args, retries=3, **kwargs):
                 raise
 
 
-def get_weeks(year: int):
-    """Return all Mon-Sun weeks that overlap with the given year."""
-    jan1 = date(year, 1, 1)
-    first_monday = jan1 - timedelta(days=jan1.weekday())
-
-    weeks = []
-    monday = first_monday
-    week_num = 1
-
-    while True:
-        sunday = monday + timedelta(days=6)
-        if monday.year > year:
-            break
-
-        thursday = monday + timedelta(days=3)
-        if thursday.year < year:
-            month_num = 1
-        elif thursday.year > year:
-            month_num = 12
-        else:
-            month_num = thursday.month
-
-        days = {}
-        for i, name in enumerate(DAY_NAMES):
-            days[name] = monday + timedelta(days=i)
-
-        weeks.append({
-            "week_num": week_num,
-            "monday": monday,
-            "sunday": sunday,
-            "month_num": month_num,
-            "month_name": MONTHS[month_num - 1],
-            "label": f"{monday.strftime('%b %d')} - {sunday.strftime('%b %d')}",
-            "days": days,
-            "week_key": f"W{week_num:02d}",
-        })
-
-        week_num += 1
-        monday += timedelta(days=7)
-
-    return weeks
-
-
-def get_data_source_id(db_id: str) -> str:
-    """Get the first data source ID for a database."""
-    db = api_call(notion.databases.retrieve, db_id)
-    return db["data_sources"][0]["id"]
+def get_month_day_labels(year: int, month: int) -> list[str]:
+    """Return day labels like '1 (Mon)', '2 (Tue)' ... for a given month."""
+    num_days = calendar.monthrange(year, month)[1]
+    labels = []
+    for day in range(1, num_days + 1):
+        d = date(year, month, day)
+        day_name = DAY_ABBR[d.weekday()]
+        labels.append(f"{day} ({day_name})")
+    return labels
 
 # ---------------------------------------------------------------------------
 # Database creation (Notion API 2025-09-03)
@@ -139,10 +102,7 @@ def create_metrics_database(parent_id: str) -> tuple[str, str]:
     )
     db_id = db["id"]
     ds_id = db["data_sources"][0]["id"]
-    print(f"  Database: {db_id}")
-    print(f"  DataSource: {ds_id}")
 
-    # Add properties via data_sources.update
     print("  Adding properties...")
     api_call(
         notion.data_sources.update,
@@ -153,32 +113,30 @@ def create_metrics_database(parent_id: str) -> tuple[str, str]:
             "Active": {"checkbox": {}},
         },
     )
-    print("  Properties set: Name, Category, Weekly Target, Active")
+    print(f"  Created: {db_id}")
     return db_id, ds_id
 
 
-def create_tracker_database(parent_id: str, weeks: list) -> tuple[str, str]:
-    """Create the 'Weekly Tracker 2026' database. Returns (db_id, data_source_id)."""
-    print("Creating 'Weekly Tracker 2026' database...")
+def create_tracker_database(parent_id: str) -> tuple[str, str]:
+    """Create the 'Monthly Tracker 2026' database. Returns (db_id, data_source_id)."""
+    print("Creating 'Monthly Tracker 2026' database...")
     db = api_call(
         notion.databases.create,
         parent={"type": "page_id", "page_id": parent_id},
-        title=[{"type": "text", "text": {"content": "Weekly Tracker 2026"}}],
+        title=[{"type": "text", "text": {"content": "Monthly Tracker 2026"}}],
         icon={"type": "emoji", "emoji": "✅"},
         is_inline=True,
     )
     db_id = db["id"]
     ds_id = db["data_sources"][0]["id"]
-    print(f"  Database: {db_id}")
-    print(f"  DataSource: {ds_id}")
 
     month_options = [
         {"name": m, "color": MONTH_COLORS[i]} for i, m in enumerate(MONTHS)
     ]
-    week_options = [{"name": f"W{n:02d}", "color": "default"} for n in range(1, 54)]
 
-    # Step 1: Add base properties (non-formula)
-    print("  Adding base properties...")
+    # Step 1: Base properties + day columns 1-31
+    print("  Adding base properties + day columns 1-31...")
+    day_props = {str(d): {"checkbox": {}} for d in range(1, 32)}
     api_call(
         notion.data_sources.update,
         data_source_id=ds_id,
@@ -186,29 +144,26 @@ def create_tracker_database(parent_id: str, weeks: list) -> tuple[str, str]:
             "Name": {"name": "Metric", "title": {}},
             "Category": {"select": {"options": CATEGORIES}},
             "Month": {"select": {"options": month_options}},
-            "Week": {"select": {"options": week_options}},
-            "Week Dates": {"rich_text": {}},
-            **{d: {"checkbox": {}} for d in DAY_NAMES},
-            "Weekly Target": {"number": {"format": "number"}},
+            "Monthly Target": {"number": {"format": "number"}},
             "Streak": {"number": {"format": "number"}},
+            **day_props,
         },
     )
 
-    # Step 2: Add Days Done formula (references checkbox properties)
+    # Step 2: Days Done formula
     print("  Adding Days Done formula...")
-    days_done_expr = " + ".join(
-        [f'if(prop("{d}"), 1, 0)' for d in DAY_NAMES]
-    )
+    days_done_parts = [f'if(prop("{d}"), 1, 0)' for d in range(1, 32)]
+    days_done_expr = " + ".join(days_done_parts)
     api_call(
         notion.data_sources.update,
         data_source_id=ds_id,
         properties={"Days Done": {"formula": {"expression": days_done_expr}}},
     )
 
-    # Step 3: Add Target Met formula (must inline Days Done since cross-ref fails)
+    # Step 3: Target Met formula (inlined)
     print("  Adding Target Met formula...")
     target_met_expr = (
-        f'if(prop("Weekly Target") > 0, ({days_done_expr}) >= prop("Weekly Target"), true)'
+        f'if(prop("Monthly Target") > 0, ({days_done_expr}) >= prop("Monthly Target"), true)'
     )
     api_call(
         notion.data_sources.update,
@@ -216,7 +171,7 @@ def create_tracker_database(parent_id: str, weeks: list) -> tuple[str, str]:
         properties={"Target Met": {"formula": {"expression": target_met_expr}}},
     )
 
-    print("  All 16 properties set.")
+    print(f"  Created with 37 properties: {db_id}")
     return db_id, ds_id
 
 # ---------------------------------------------------------------------------
@@ -267,9 +222,9 @@ def add_default_metrics(metrics_db_id: str) -> list:
     return results
 
 
-def populate_tracker(tracker_db_id: str, tracker_ds_id: str, metrics: list, weeks: list):
-    """Create one row per metric per week, skipping already-existing entries."""
-    # Check for existing entries (supports resume after partial failure)
+def populate_tracker(tracker_db_id: str, tracker_ds_id: str, metrics: list):
+    """Create one row per metric per month (60 entries for 5 metrics)."""
+    # Check existing
     print("  Checking for existing entries...")
     existing = set()
     cursor = None
@@ -281,49 +236,50 @@ def populate_tracker(tracker_db_id: str, tracker_ds_id: str, metrics: list, week
         for page in resp["results"]:
             props = page["properties"]
             metric_title = props.get("Metric", {}).get("title", [])
-            week_sel = props.get("Week", {}).get("select")
-            if metric_title and week_sel:
+            month_sel = props.get("Month", {}).get("select")
+            if metric_title and month_sel:
                 name = metric_title[0].get("text", {}).get("content", "")
-                week = week_sel.get("name", "")
-                existing.add((name, week))
+                month = month_sel.get("name", "")
+                existing.add((name, month))
         if not resp.get("has_more"):
             break
         cursor = resp["next_cursor"]
 
-    # Build list of missing entries
     needed = []
     for metric in metrics:
-        for week in weeks:
-            if (metric["name"], week["week_key"]) not in existing:
-                needed.append((metric, week))
+        for month_name in MONTHS:
+            if (metric["name"], month_name) not in existing:
+                needed.append((metric, month_name))
 
     total = len(needed)
     if total == 0:
-        print(f"  All {len(existing)} entries already exist. Skipping.")
+        print(f"  All entries exist. Skipping.")
         return
 
     print(f"  {len(existing)} exist, {total} to create...")
 
+    # Monthly target = weekly target * ~4.3 (rounded)
     count = 0
-    for metric, week in needed:
+    for metric, month_name in needed:
+        month_num = MONTHS.index(month_name) + 1
+        num_days = calendar.monthrange(YEAR, month_num)[1]
+        monthly_target = round(metric["target"] * num_days / 7)
+
         api_call(
             notion.pages.create,
             parent={"database_id": tracker_db_id},
             properties={
                 "Metric": {"title": [{"text": {"content": metric["name"]}}]},
                 "Category": {"select": {"name": metric["category"]}},
-                "Month": {"select": {"name": week["month_name"]}},
-                "Week": {"select": {"name": week["week_key"]}},
-                "Week Dates": {"rich_text": [{"text": {"content": week["label"]}}]},
-                **{d: {"checkbox": False} for d in DAY_NAMES},
-                "Weekly Target": {"number": metric["target"]},
+                "Month": {"select": {"name": month_name}},
+                "Monthly Target": {"number": monthly_target},
+                **{str(d): {"checkbox": False} for d in range(1, 32)},
                 "Streak": {"number": 0},
             },
         )
         count += 1
-        if count % 25 == 0:
-            pct = count * 100 // total
-            print(f"  Progress: {count}/{total} ({pct}%)")
+        if count % 10 == 0:
+            print(f"  Progress: {count}/{total}")
 
     print(f"  Done: {count} entries created. Total: {len(existing) + count}")
 
@@ -331,13 +287,9 @@ def populate_tracker(tracker_db_id: str, tracker_ds_id: str, metrics: list, week
 # Page structure
 # ---------------------------------------------------------------------------
 
-def build_page_structure(parent_id: str, weeks: list):
-    """Append headings, toggles, and instructions to the parent page."""
+def build_page_structure(parent_id: str):
+    """Append headings, month references, and instructions to the parent page."""
     print("Building page layout...")
-
-    months_weeks: dict[str, list] = {}
-    for w in weeks:
-        months_weeks.setdefault(w["month_name"], []).append(w)
 
     blocks: list[dict] = []
 
@@ -346,49 +298,50 @@ def build_page_structure(parent_id: str, weeks: list):
     blocks.append(_callout(
         "💡",
         "How to use:\n"
-        "1. Scroll down to 'Weekly Tracker 2026' and click the ⋯ menu → Add view → Table.\n"
-        "2. Filter by Week = current week. Save as 'This Week'.\n"
-        "3. Repeat for each month (filter by Month). Add Chart views for analytics.\n"
-        "4. Check boxes daily. Use 'My Metrics' to manage your metrics list.",
+        "1. Open 'Monthly Tracker 2026' below.\n"
+        "2. Use the view tabs (January, February, ...) to switch months.\n"
+        "3. Check boxes daily — Days Done and Target Met auto-calculate.\n"
+        "4. Click any metric in 'My Metrics' to edit its description.\n"
+        "5. Use the embedded tracker widget for the best visual experience.",
     ))
     blocks.append(_divider())
 
-    # Pinned current week
-    blocks.append(_heading2("📌 This Week"))
+    # Month reference toggles (showing day-of-week mapping)
+    blocks.append(_heading2("📆 Month Day Reference"))
     blocks.append(_paragraph(
-        "Create a 'This Week' filtered view on the Weekly Tracker database above, "
-        "then drag it here for quick access."
+        "Expand a month to see which day of the week each date falls on."
     ))
-    blocks.append(_divider())
 
-    # Monthly toggles
-    blocks.append(_heading2("📆 Monthly Views"))
+    for month_idx, month_name in enumerate(MONTHS):
+        month_num = month_idx + 1
+        num_days = calendar.monthrange(YEAR, month_num)[1]
+        labels = get_month_day_labels(YEAR, month_num)
 
-    for month_name in MONTHS:
-        m_weeks = months_weeks.get(month_name, [])
-        children = []
-        for w in m_weeks:
-            day_header = "  |  ".join(
-                f"{d} {w['days'][d].strftime('%m/%d')}" for d in DAY_NAMES
-            )
-            children.append(_callout(
-                "📋",
-                f"{w['week_key']}: {w['label']}\n{day_header}",
-                "gray_background",
-            ))
-
-        if not children:
-            children.append(_paragraph("No weeks in this month."))
+        # Build rows of 7 for readability
+        rows = []
+        for i in range(0, len(labels), 7):
+            chunk = labels[i:i+7]
+            rows.append("  ".join(f"{l:>8}" for l in chunk))
+        day_text = "\n".join(rows)
 
         blocks.append({
             "object": "block",
             "type": "toggle",
             "toggle": {
                 "rich_text": [
-                    {"type": "text", "text": {"content": f"  {month_name}"}, "annotations": {"bold": True}},
-                    {"type": "text", "text": {"content": f"  ({len(m_weeks)} weeks)"}, "annotations": {"color": "gray"}},
+                    {"type": "text", "text": {"content": f"  {month_name} {YEAR}"}, "annotations": {"bold": True}},
+                    {"type": "text", "text": {"content": f"  ({num_days} days)"}, "annotations": {"color": "gray"}},
                 ],
-                "children": children,
+                "children": [
+                    {
+                        "object": "block",
+                        "type": "code",
+                        "code": {
+                            "rich_text": [{"type": "text", "text": {"content": day_text}}],
+                            "language": "plain text",
+                        },
+                    },
+                ],
             },
         })
 
@@ -398,12 +351,11 @@ def build_page_structure(parent_id: str, weeks: list):
     blocks.append(_heading2("📈 Charts & Analytics"))
     blocks.append(_callout(
         "📊",
-        "Set up charts on the Weekly Tracker database:\n"
+        "Set up charts on Monthly Tracker:\n"
         "1. Per-metric completion → Bar chart, X: Metric, Y: Days Done\n"
-        "2. Monthly trend → Line chart, X: Month, Y: Days Done (sum)\n"
-        "3. Category breakdown → Pie chart, group by Category\n"
-        "4. Target hit rate → Bar chart, X: Week, Y: Target Met (% true)\n\n"
-        "To add: open Weekly Tracker → + Add a view → Chart.",
+        "2. Monthly trend → Line chart, X: Month, Y: Days Done\n"
+        "3. Category breakdown → Pie chart, group by Category\n\n"
+        "To add: open Monthly Tracker → + Add a view → Chart.",
     ))
     blocks.append(_divider())
 
@@ -412,6 +364,18 @@ def build_page_structure(parent_id: str, weeks: list):
     blocks.append(_paragraph(
         "Run  python generate_heatmap.py  to create a GitHub-style heatmap.\n"
         "Open heatmap/index.html in your browser to view it."
+    ))
+    blocks.append(_divider())
+
+    # Web tracker widget section
+    blocks.append(_heading2("🌐 Interactive Tracker Widget"))
+    blocks.append(_callout(
+        "🖥️",
+        "After running setup, deploy the web tracker to GitHub Pages:\n"
+        "  git push origin main\n"
+        "Then embed this URL in Notion with /embed:\n"
+        f"  https://<your-username>.github.io/notion-productivity-template/tracker/\n\n"
+        "The widget has a month dropdown with dynamic day headers like '1 (Mon)'.",
     ))
     blocks.append(_divider())
 
@@ -461,11 +425,8 @@ def _callout(emoji, text, color="default"):
 # Config persistence
 # ---------------------------------------------------------------------------
 
-def save_config(metrics_db_id: str, tracker_db_id: str, metrics_ds_id: str, tracker_ds_id: str):
-    CONFIG["metrics_db_id"] = metrics_db_id
-    CONFIG["tracker_db_id"] = tracker_db_id
-    CONFIG["metrics_ds_id"] = metrics_ds_id
-    CONFIG["tracker_ds_id"] = tracker_ds_id
+def save_config(**ids):
+    CONFIG.update(ids)
     with open("config.json", "w") as f:
         json.dump(CONFIG, f, indent=4)
     print("  IDs saved to config.json")
@@ -476,10 +437,10 @@ def save_config(metrics_db_id: str, tracker_db_id: str, metrics_ds_id: str, trac
 
 def main():
     print("=" * 55)
-    print(f"  Productivity Tracker {YEAR} — Notion Setup")
+    print(f"  Productivity Tracker {YEAR} — Monthly Setup")
     print("=" * 55)
 
-    if CONFIG.get("metrics_db_id") and CONFIG.get("tracker_db_id"):
+    if CONFIG.get("tracker_db_id") and CONFIG.get("tracker_ds_id"):
         print("\n⚠️  config.json already has database IDs.")
         print("   Running again will create DUPLICATE databases.")
         resp = input("   Continue? (y/N): ").strip().lower()
@@ -487,35 +448,35 @@ def main():
             print("Aborted.")
             sys.exit(0)
 
-    weeks = get_weeks(YEAR)
-    print(f"\nGenerated {len(weeks)} weeks for {YEAR}")
-    print(f"  First week: {weeks[0]['label']}")
-    print(f"  Last week:  {weeks[-1]['label']}\n")
+    # 1. Build page structure first (databases appear above this content)
+    build_page_structure(PAGE_ID)
 
-    # 1. Build page structure first (databases will appear above this content)
-    build_page_structure(PAGE_ID, weeks)
-
-    # 2. Create databases + add properties via data sources API
+    # 2. Create databases
     metrics_db_id, metrics_ds_id = create_metrics_database(PAGE_ID)
-    tracker_db_id, tracker_ds_id = create_tracker_database(PAGE_ID, weeks)
+    tracker_db_id, tracker_ds_id = create_tracker_database(PAGE_ID)
 
     # 3. Save IDs
-    save_config(metrics_db_id, tracker_db_id, metrics_ds_id, tracker_ds_id)
+    save_config(
+        metrics_db_id=metrics_db_id,
+        tracker_db_id=tracker_db_id,
+        metrics_ds_id=metrics_ds_id,
+        tracker_ds_id=tracker_ds_id,
+    )
 
     # 4. Populate
     add_default_metrics(metrics_db_id)
-    populate_tracker(tracker_db_id, tracker_ds_id, DEFAULT_METRICS, weeks)
+    populate_tracker(tracker_db_id, tracker_ds_id, DEFAULT_METRICS)
 
-    # Done
+    total_entries = len(DEFAULT_METRICS) * 12
     print("\n" + "=" * 55)
     print("  Setup complete!")
     print("=" * 55)
     print(f"\n  Metrics DB:  {metrics_db_id}")
     print(f"  Tracker DB:  {tracker_db_id}")
-    print(f"  Entries:     {len(DEFAULT_METRICS)} metrics x {len(weeks)} weeks = {len(DEFAULT_METRICS) * len(weeks)}")
+    print(f"  Entries:     {len(DEFAULT_METRICS)} metrics x 12 months = {total_entries}")
     print(f"\n  Next steps:")
-    print(f"  1. Open your Notion page and explore the databases")
-    print(f"  2. Create filtered views: 'This Week', monthly views, chart views")
+    print(f"  1. Open your Notion page")
+    print(f"  2. Monthly Tracker already has view tabs per month")
     print(f"  3. Start checking off your daily habits!")
     print(f"  4. Run 'python add_metric.py' to add more metrics\n")
 

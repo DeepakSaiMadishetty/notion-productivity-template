@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Productivity Tracker 2026</title>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --surface: #262637;
+    --border: #363649;
+    --text: #cdd6f4;
+    --text-dim: #6c7086;
+    --accent: #89b4fa;
+    --green: #a6e3a1;
+    --red: #f38ba8;
+    --yellow: #f9e2af;
+    --check-bg: #313244;
+    --check-active: #a6e3a1;
+    --cat-health: #a6e3a1;
+    --cat-work: #89b4fa;
+    --cat-learning: #cba6f7;
+    --cat-personal: #fab387;
+    --cat-finance: #f9e2af;
+    --cat-social: #f5c2e7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* Month selector */
+  .month-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236c7086' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+  .month-select:focus { outline: 2px solid var(--accent); }
+
+  /* Year nav */
+  .year-display {
+    font-size: 15px;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    min-width: 110px;
+  }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-value.green { color: var(--green); }
+  .stat-value.blue { color: var(--accent); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+  /* Tracker table */
+  .tracker-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow-x: auto;
+    position: relative;
+  }
+  .tracker-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+  }
+  .tracker-table th, .tracker-table td {
+    padding: 6px 4px;
+    text-align: center;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  /* Sticky metric name column */
+  .tracker-table th:first-child,
+  .tracker-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--surface);
+    text-align: left;
+    padding-left: 16px;
+    padding-right: 12px;
+    min-width: 160px;
+    font-weight: 600;
+    border-right: 2px solid var(--border);
+  }
+  .tracker-table thead th:first-child { z-index: 3; }
+
+  /* Day header columns */
+  .tracker-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+    padding: 10px 4px 6px;
+    font-weight: 500;
+  }
+  .day-num { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+  .day-name { display: block; font-size: 10px; color: var(--text-dim); margin-top: 1px; }
+  .weekend .day-num { color: var(--accent); }
+  .today-col { background: rgba(137, 180, 250, 0.08) !important; }
+
+  /* Category pill */
+  .cat-pill {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-weight: 400;
+    opacity: 0.8;
+  }
+
+  /* Checkboxes */
+  .cb-cell { padding: 3px 2px; min-width: 28px; }
+  .cb {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 2px solid var(--border);
+    background: var(--check-bg);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    position: relative;
+  }
+  .cb:hover { border-color: var(--accent); transform: scale(1.1); }
+  .cb.checked {
+    background: var(--check-active);
+    border-color: var(--check-active);
+  }
+  .cb.checked::after {
+    content: '';
+    width: 6px;
+    height: 10px;
+    border: solid var(--bg);
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg) translate(-1px, -1px);
+  }
+  .cb.disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Score column */
+  .score-cell {
+    font-weight: 700;
+    font-size: 13px;
+    padding-right: 16px !important;
+    border-left: 2px solid var(--border);
+    min-width: 60px;
+  }
+  .score-cell.perfect { color: var(--green); }
+  .score-cell.good { color: var(--accent); }
+  .score-cell.low { color: var(--red); }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .save-status.saving { color: var(--yellow); }
+  .save-status.saved { color: var(--green); }
+  .save-status.error { color: var(--red); }
+  .save-status.offline { color: var(--text-dim); }
+
+  /* Scrollbar */
+  .tracker-wrap::-webkit-scrollbar { height: 8px; }
+  .tracker-wrap::-webkit-scrollbar-track { background: var(--surface); }
+  .tracker-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* Week separators */
+  .week-sep { border-left: 2px solid var(--border) !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Productivity Tracker 2026</h1>
+  <div class="header-controls">
+    <span class="year-display">2026</span>
+    <select class="month-select" id="monthSelect"></select>
+  </div>
+</div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat"><div class="stat-value green" id="statDone">0</div><div class="stat-label">Days Done</div></div>
+  <div class="stat"><div class="stat-value blue" id="statPct">0%</div><div class="stat-label">Completion</div></div>
+  <div class="stat"><div class="stat-value yellow" id="statStreak">0</div><div class="stat-label">Streak</div></div>
+</div>
+
+<div class="tracker-wrap">
+  <table class="tracker-table" id="trackerTable">
+    <thead id="tableHead"></thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<div class="status-bar">
+  <span id="saveStatus" class="save-status offline">Offline mode — data stored locally</span>
+  <span id="monthInfo"></span>
+</div>
+
+<script>
+const YEAR = 2026;
+const MONTHS = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December'
+];
+const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const CAT_COLORS = {
+  Health: 'var(--cat-health)',
+  Work: 'var(--cat-work)',
+  Learning: 'var(--cat-learning)',
+  Personal: 'var(--cat-personal)',
+  Finance: 'var(--cat-finance)',
+  Social: 'var(--cat-social)',
+};
+
+// Default metrics (can be extended via Notion sync)
+let metrics = JSON.parse(localStorage.getItem('tracker_metrics') || 'null') || [
+  { name: 'Exercise', category: 'Health', target: 22 },
+  { name: 'Read 30 min', category: 'Learning', target: 30 },
+  { name: 'Meditate', category: 'Health', target: 22 },
+  { name: 'Deep Work (4 hrs)', category: 'Work', target: 22 },
+  { name: 'Journal', category: 'Personal', target: 30 },
+];
+
+// Data: { "January": { "Exercise": { "1": true, "2": false, ... }, ... }, ... }
+let data = JSON.parse(localStorage.getItem('tracker_data') || '{}');
+
+function daysInMonth(month) {
+  // month is 0-indexed
+  return new Date(YEAR, month + 1, 0).getDate();
+}
+
+function getDayOfWeek(month, day) {
+  const d = new Date(YEAR, month, day);
+  return (d.getDay() + 6) % 7; // 0=Mon, 6=Sun
+}
+
+function isToday(month, day) {
+  const now = new Date();
+  return now.getFullYear() === YEAR && now.getMonth() === month && now.getDate() === day;
+}
+
+function isWeekStart(month, day) {
+  return getDayOfWeek(month, day) === 0 && day > 1;
+}
+
+function saveData() {
+  localStorage.setItem('tracker_data', JSON.stringify(data));
+  localStorage.setItem('tracker_metrics', JSON.stringify(metrics));
+}
+
+function getChecked(monthName, metricName, day) {
+  return !!(data[monthName] && data[monthName][metricName] && data[monthName][metricName][String(day)]);
+}
+
+function setChecked(monthName, metricName, day, value) {
+  if (!data[monthName]) data[monthName] = {};
+  if (!data[monthName][metricName]) data[monthName][metricName] = {};
+  data[monthName][metricName][String(day)] = value;
+  saveData();
+}
+
+function computeStats(monthIdx) {
+  const monthName = MONTHS[monthIdx];
+  const numDays = daysInMonth(monthIdx);
+  let totalChecks = 0;
+  let totalPossible = metrics.length * numDays;
+
+  metrics.forEach(m => {
+    for (let d = 1; d <= numDays; d++) {
+      if (getChecked(monthName, m.name, d)) totalChecks++;
+    }
+  });
+
+  // Streak: consecutive days (up to today) where ALL metrics are done
+  const now = new Date();
+  let streak = 0;
+  let checkDate = new Date(YEAR, monthIdx, Math.min(now.getDate(), numDays));
+  if (now.getFullYear() !== YEAR || now.getMonth() !== monthIdx) {
+    checkDate = new Date(YEAR, monthIdx, numDays);
+  }
+
+  while (checkDate.getMonth() === monthIdx && checkDate.getDate() >= 1) {
+    const day = checkDate.getDate();
+    const allDone = metrics.every(m => getChecked(monthName, m.name, day));
+    if (allDone && metrics.length > 0) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return { totalChecks, totalPossible, streak };
+}
+
+function render(monthIdx) {
+  const monthName = MONTHS[monthIdx];
+  const numDays = daysInMonth(monthIdx);
+
+  // Header row
+  const thead = document.getElementById('tableHead');
+  let headerHtml = '<tr><th>Metric</th>';
+  for (let d = 1; d <= numDays; d++) {
+    const dow = getDayOfWeek(monthIdx, d);
+    const isWknd = dow >= 5;
+    const isTdy = isToday(monthIdx, d);
+    const isWkStart = isWeekStart(monthIdx, d);
+    let cls = '';
+    if (isWknd) cls += ' weekend';
+    if (isTdy) cls += ' today-col';
+    if (isWkStart) cls += ' week-sep';
+    headerHtml += `<th class="${cls}"><span class="day-num">${d}</span><span class="day-name">${DAY_NAMES[dow]}</span></th>`;
+  }
+  headerHtml += '<th>Score</th></tr>';
+  thead.innerHTML = headerHtml;
+
+  // Body rows
+  const tbody = document.getElementById('tableBody');
+  let bodyHtml = '';
+  metrics.forEach(m => {
+    const catColor = CAT_COLORS[m.category] || 'var(--text-dim)';
+    bodyHtml += `<tr><td>${m.name}<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${m.category}</span></td>`;
+
+    let doneCount = 0;
+    for (let d = 1; d <= numDays; d++) {
+      const checked = getChecked(monthName, m.name, d);
+      if (checked) doneCount++;
+      const isTdy = isToday(monthIdx, d);
+      const isWkStart = isWeekStart(monthIdx, d);
+      let cls = 'cb-cell';
+      if (isTdy) cls += ' today-col';
+      if (isWkStart) cls += ' week-sep';
+      bodyHtml += `<td class="${cls}"><div class="cb${checked ? ' checked' : ''}" data-metric="${m.name}" data-day="${d}" data-month="${monthName}"></div></td>`;
+    }
+
+    const pct = numDays > 0 ? Math.round(doneCount / numDays * 100) : 0;
+    let scoreCls = 'score-cell';
+    if (pct >= 90) scoreCls += ' perfect';
+    else if (pct >= 50) scoreCls += ' good';
+    else if (pct > 0) scoreCls += ' low';
+    bodyHtml += `<td class="${scoreCls}">${doneCount}/${numDays}</td></tr>`;
+  });
+  tbody.innerHTML = bodyHtml;
+
+  // Stats
+  const stats = computeStats(monthIdx);
+  document.getElementById('statDone').textContent = stats.totalChecks;
+  const pct = stats.totalPossible > 0 ? Math.round(stats.totalChecks / stats.totalPossible * 100) : 0;
+  document.getElementById('statPct').textContent = pct + '%';
+  document.getElementById('statStreak').textContent = stats.streak;
+  document.getElementById('monthInfo').textContent = `${monthName} ${YEAR} — ${numDays} days`;
+
+  // Attach checkbox listeners
+  document.querySelectorAll('.cb:not(.disabled)').forEach(cb => {
+    cb.addEventListener('click', () => {
+      const metric = cb.dataset.metric;
+      const day = cb.dataset.day;
+      const month = cb.dataset.month;
+      const newVal = !getChecked(month, metric, day);
+      setChecked(month, metric, day, newVal);
+      render(monthIdx);
+    });
+  });
+}
+
+// Initialize month selector
+const select = document.getElementById('monthSelect');
+MONTHS.forEach((m, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = m;
+  select.appendChild(opt);
+});
+
+// Default to current month
+const now = new Date();
+const defaultMonth = (now.getFullYear() === YEAR) ? now.getMonth() : 0;
+select.value = defaultMonth;
+
+select.addEventListener('change', () => render(parseInt(select.value)));
+render(defaultMonth);
+</script>
+</body>
+</html>
