@@ -35,7 +35,6 @@
     min-height: 100vh;
   }
 
-  /* Header */
   .header {
     display: flex;
     align-items: center;
@@ -44,17 +43,9 @@
     flex-wrap: wrap;
     gap: 16px;
   }
-  .header h1 {
-    font-size: 22px;
-    font-weight: 700;
-  }
-  .header-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header-controls { display: flex; align-items: center; gap: 12px; }
 
-  /* Month selector */
   .month-select {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -72,20 +63,9 @@
   }
   .month-select:focus { outline: 2px solid var(--accent); }
 
-  /* Year nav */
-  .year-display {
-    font-size: 15px;
-    color: var(--text-dim);
-    font-weight: 500;
-  }
+  .year-display { font-size: 15px; color: var(--text-dim); font-weight: 500; }
 
-  /* Stats bar */
-  .stats-bar {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
+  .stats-bar { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
   .stat {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -99,13 +79,11 @@
   .stat-value.yellow { color: var(--yellow); }
   .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
 
-  /* Tracker table */
   .tracker-wrap {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow-x: auto;
-    position: relative;
   }
   .tracker-table {
     border-collapse: separate;
@@ -121,7 +99,6 @@
     white-space: nowrap;
   }
 
-  /* Sticky metric name column */
   .tracker-table th:first-child,
   .tracker-table td:first-child {
     position: sticky;
@@ -137,7 +114,6 @@
   }
   .tracker-table thead th:first-child { z-index: 3; }
 
-  /* Day header columns */
   .tracker-table thead th {
     position: sticky;
     top: 0;
@@ -151,7 +127,6 @@
   .weekend .day-num { color: var(--accent); }
   .today-col { background: rgba(137, 180, 250, 0.08) !important; }
 
-  /* Category pill */
   .cat-pill {
     display: inline-block;
     font-size: 10px;
@@ -162,7 +137,6 @@
     opacity: 0.8;
   }
 
-  /* Checkboxes */
   .cb-cell { padding: 3px 2px; min-width: 28px; }
   .cb {
     width: 20px;
@@ -175,7 +149,6 @@
     align-items: center;
     justify-content: center;
     transition: all 0.15s;
-    position: relative;
   }
   .cb:hover { border-color: var(--accent); transform: scale(1.1); }
   .cb.checked {
@@ -190,13 +163,7 @@
     border-width: 0 2.5px 2.5px 0;
     transform: rotate(45deg) translate(-1px, -1px);
   }
-  .cb.disabled {
-    opacity: 0.2;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
 
-  /* Score column */
   .score-cell {
     font-weight: 700;
     font-size: 13px;
@@ -208,7 +175,6 @@
   .score-cell.good { color: var(--accent); }
   .score-cell.low { color: var(--red); }
 
-  /* Status bar */
   .status-bar {
     display: flex;
     justify-content: space-between;
@@ -217,17 +183,11 @@
     font-size: 12px;
     color: var(--text-dim);
   }
-  .save-status.saving { color: var(--yellow); }
-  .save-status.saved { color: var(--green); }
-  .save-status.error { color: var(--red); }
-  .save-status.offline { color: var(--text-dim); }
 
-  /* Scrollbar */
   .tracker-wrap::-webkit-scrollbar { height: 8px; }
   .tracker-wrap::-webkit-scrollbar-track { background: var(--surface); }
   .tracker-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-  /* Week separators */
   .week-sep { border-left: 2px solid var(--border) !important; }
 </style>
 </head>
@@ -255,16 +215,13 @@
 </div>
 
 <div class="status-bar">
-  <span id="saveStatus" class="save-status offline">Offline mode — data stored locally</span>
+  <span>Synced from Notion — re-run <code>python generate_tracker.py</code> to refresh</span>
   <span id="monthInfo"></span>
 </div>
 
 <script>
 const YEAR = 2026;
-const MONTHS = [
-  'January','February','March','April','May','June',
-  'July','August','September','October','November','December'
-];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const CAT_COLORS = {
   Health: 'var(--cat-health)',
@@ -275,41 +232,26 @@ const CAT_COLORS = {
   Social: 'var(--cat-social)',
 };
 
-// Default metrics (can be extended via Notion sync)
-let metrics = JSON.parse(localStorage.getItem('tracker_metrics') || 'null') || [
-  { name: 'Exercise', category: 'Health', target: 22 },
-  { name: 'Read 30 min', category: 'Learning', target: 30 },
-  { name: 'Meditate', category: 'Health', target: 22 },
-  { name: 'Deep Work (4 hrs)', category: 'Work', target: 22 },
-  { name: 'Journal', category: 'Personal', target: 30 },
-];
+const metrics = [{"name": "Wake up in the morning at 6am", "category": "Personal", "target": 5}, {"name": "Skin care", "category": "Personal", "target": 7}, {"name": "Supplements", "category": "Personal", "target": 7}, {"name": "Deep Work (4 hrs)", "category": "Work", "target": 5}, {"name": "Diet", "category": "Health", "target": 7}, {"name": "Level up", "category": "Learning", "target": 5}, {"name": "Read 20 min", "category": "Learning", "target": 7}, {"name": "Exercise", "category": "Health", "target": 5}];
+let data = {"February": {"Skin care": {}, "No nut ": {}, "Level up": {}, "Supplements": {}, "Deep Work (4 hrs)": {}, "Diet": {}, "Wake up at 6": {}, "Exercise": {}, "Read 30 min": {}}, "June": {"Journal": {}, "Deep Work (4 hrs)": {}, "Read 30 min": {}, "Meditate": {}, "Exercise": {}}, "August": {"Deep Work (4 hrs)": {}, "Meditate": {}, "Exercise": {}, "Read 30 min": {}, "Journal": {}}, "September": {"Meditate": {}, "Read 30 min": {}, "Exercise": {}, "Deep Work (4 hrs)": {}, "Journal": {}}, "January": {"Read 30 min": {}, "Meditate": {}, "Exercise": {}, "Journal": {}, "Deep Work (4 hrs)": {}}, "July": {"Exercise": {}, "Read 30 min": {}, "Journal": {}, "Meditate": {}, "Deep Work (4 hrs)": {}}, "March": {"Meditate": {}, "Journal": {}, "Exercise": {}, "Read 30 min": {}, "Deep Work (4 hrs)": {}}, "November": {"Deep Work (4 hrs)": {}, "Exercise": {}, "Read 30 min": {}, "Journal": {}, "Meditate": {}}, "April": {"Deep Work (4 hrs)": {}, "Meditate": {}, "Exercise": {}, "Journal": {}, "Read 30 min": {}}, "May": {"Read 30 min": {}, "Exercise": {}, "Deep Work (4 hrs)": {}, "Journal": {}, "Meditate": {}}, "December": {"Exercise": {}, "Read 30 min": {}, "Journal": {}, "Meditate": {}, "Deep Work (4 hrs)": {}}, "October": {"Journal": {}, "Exercise": {}, "Meditate": {}, "Read 30 min": {}, "Deep Work (4 hrs)": {}}};
 
-// Data: { "January": { "Exercise": { "1": true, "2": false, ... }, ... }, ... }
-let data = JSON.parse(localStorage.getItem('tracker_data') || '{}');
+// Merge any localStorage overrides on top of Notion data
+const localOverrides = JSON.parse(localStorage.getItem('tracker_overrides') || '{}');
+Object.keys(localOverrides).forEach(month => {
+  if (!data[month]) data[month] = {};
+  Object.keys(localOverrides[month] || {}).forEach(metric => {
+    if (!data[month][metric]) data[month][metric] = {};
+    Object.assign(data[month][metric], localOverrides[month][metric]);
+  });
+});
 
-function daysInMonth(month) {
-  // month is 0-indexed
-  return new Date(YEAR, month + 1, 0).getDate();
-}
-
-function getDayOfWeek(month, day) {
-  const d = new Date(YEAR, month, day);
-  return (d.getDay() + 6) % 7; // 0=Mon, 6=Sun
-}
-
+function daysInMonth(month) { return new Date(YEAR, month + 1, 0).getDate(); }
+function getDayOfWeek(month, day) { return (new Date(YEAR, month, day).getDay() + 6) % 7; }
 function isToday(month, day) {
   const now = new Date();
   return now.getFullYear() === YEAR && now.getMonth() === month && now.getDate() === day;
 }
-
-function isWeekStart(month, day) {
-  return getDayOfWeek(month, day) === 0 && day > 1;
-}
-
-function saveData() {
-  localStorage.setItem('tracker_data', JSON.stringify(data));
-  localStorage.setItem('tracker_metrics', JSON.stringify(metrics));
-}
+function isWeekStart(month, day) { return getDayOfWeek(month, day) === 0 && day > 1; }
 
 function getChecked(monthName, metricName, day) {
   return !!(data[monthName] && data[monthName][metricName] && data[monthName][metricName][String(day)]);
@@ -319,129 +261,85 @@ function setChecked(monthName, metricName, day, value) {
   if (!data[monthName]) data[monthName] = {};
   if (!data[monthName][metricName]) data[monthName][metricName] = {};
   data[monthName][metricName][String(day)] = value;
-  saveData();
+  // Save override to localStorage
+  if (!localOverrides[monthName]) localOverrides[monthName] = {};
+  if (!localOverrides[monthName][metricName]) localOverrides[monthName][metricName] = {};
+  localOverrides[monthName][metricName][String(day)] = value;
+  localStorage.setItem('tracker_overrides', JSON.stringify(localOverrides));
 }
 
 function computeStats(monthIdx) {
   const monthName = MONTHS[monthIdx];
   const numDays = daysInMonth(monthIdx);
   let totalChecks = 0;
-  let totalPossible = metrics.length * numDays;
-
   metrics.forEach(m => {
-    for (let d = 1; d <= numDays; d++) {
-      if (getChecked(monthName, m.name, d)) totalChecks++;
-    }
+    for (let d = 1; d <= numDays; d++) { if (getChecked(monthName, m.name, d)) totalChecks++; }
   });
-
-  // Streak: consecutive days (up to today) where ALL metrics are done
   const now = new Date();
   let streak = 0;
-  let checkDate = new Date(YEAR, monthIdx, Math.min(now.getDate(), numDays));
-  if (now.getFullYear() !== YEAR || now.getMonth() !== monthIdx) {
-    checkDate = new Date(YEAR, monthIdx, numDays);
-  }
-
+  let checkDate = new Date(YEAR, monthIdx, Math.min(now.getMonth() === monthIdx ? now.getDate() : numDays, numDays));
   while (checkDate.getMonth() === monthIdx && checkDate.getDate() >= 1) {
     const day = checkDate.getDate();
-    const allDone = metrics.every(m => getChecked(monthName, m.name, day));
-    if (allDone && metrics.length > 0) {
+    if (metrics.length > 0 && metrics.every(m => getChecked(monthName, m.name, day))) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
-    } else {
-      break;
-    }
+    } else break;
   }
-
-  return { totalChecks, totalPossible, streak };
+  return { totalChecks, totalPossible: metrics.length * numDays, streak };
 }
 
 function render(monthIdx) {
   const monthName = MONTHS[monthIdx];
   const numDays = daysInMonth(monthIdx);
-
-  // Header row
   const thead = document.getElementById('tableHead');
-  let headerHtml = '<tr><th>Metric</th>';
+  let hdr = '<tr><th>Metric</th>';
   for (let d = 1; d <= numDays; d++) {
     const dow = getDayOfWeek(monthIdx, d);
-    const isWknd = dow >= 5;
-    const isTdy = isToday(monthIdx, d);
-    const isWkStart = isWeekStart(monthIdx, d);
-    let cls = '';
-    if (isWknd) cls += ' weekend';
-    if (isTdy) cls += ' today-col';
-    if (isWkStart) cls += ' week-sep';
-    headerHtml += `<th class="${cls}"><span class="day-num">${d}</span><span class="day-name">${DAY_NAMES[dow]}</span></th>`;
+    let cls = (dow >= 5 ? ' weekend' : '') + (isToday(monthIdx, d) ? ' today-col' : '') + (isWeekStart(monthIdx, d) ? ' week-sep' : '');
+    hdr += `<th class="${cls}"><span class="day-num">${d}</span><span class="day-name">${DAY_NAMES[dow]}</span></th>`;
   }
-  headerHtml += '<th>Score</th></tr>';
-  thead.innerHTML = headerHtml;
+  hdr += '<th>Score</th></tr>';
+  thead.innerHTML = hdr;
 
-  // Body rows
   const tbody = document.getElementById('tableBody');
-  let bodyHtml = '';
+  let body = '';
   metrics.forEach(m => {
     const catColor = CAT_COLORS[m.category] || 'var(--text-dim)';
-    bodyHtml += `<tr><td>${m.name}<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${m.category}</span></td>`;
-
-    let doneCount = 0;
+    body += `<tr><td>${m.name}<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${m.category}</span></td>`;
+    let done = 0;
     for (let d = 1; d <= numDays; d++) {
       const checked = getChecked(monthName, m.name, d);
-      if (checked) doneCount++;
-      const isTdy = isToday(monthIdx, d);
-      const isWkStart = isWeekStart(monthIdx, d);
-      let cls = 'cb-cell';
-      if (isTdy) cls += ' today-col';
-      if (isWkStart) cls += ' week-sep';
-      bodyHtml += `<td class="${cls}"><div class="cb${checked ? ' checked' : ''}" data-metric="${m.name}" data-day="${d}" data-month="${monthName}"></div></td>`;
+      if (checked) done++;
+      let cls = 'cb-cell' + (isToday(monthIdx, d) ? ' today-col' : '') + (isWeekStart(monthIdx, d) ? ' week-sep' : '');
+      body += `<td class="${cls}"><div class="cb${checked ? ' checked' : ''}" data-metric="${m.name}" data-day="${d}" data-month="${monthName}"></div></td>`;
     }
-
-    const pct = numDays > 0 ? Math.round(doneCount / numDays * 100) : 0;
-    let scoreCls = 'score-cell';
-    if (pct >= 90) scoreCls += ' perfect';
-    else if (pct >= 50) scoreCls += ' good';
-    else if (pct > 0) scoreCls += ' low';
-    bodyHtml += `<td class="${scoreCls}">${doneCount}/${numDays}</td></tr>`;
+    const pct = numDays > 0 ? Math.round(done / numDays * 100) : 0;
+    let sc = 'score-cell' + (pct >= 90 ? ' perfect' : pct >= 50 ? ' good' : pct > 0 ? ' low' : '');
+    body += `<td class="${sc}">${done}/${numDays}</td></tr>`;
   });
-  tbody.innerHTML = bodyHtml;
+  tbody.innerHTML = body;
 
-  // Stats
   const stats = computeStats(monthIdx);
   document.getElementById('statDone').textContent = stats.totalChecks;
-  const pct = stats.totalPossible > 0 ? Math.round(stats.totalChecks / stats.totalPossible * 100) : 0;
-  document.getElementById('statPct').textContent = pct + '%';
+  document.getElementById('statPct').textContent = (stats.totalPossible > 0 ? Math.round(stats.totalChecks / stats.totalPossible * 100) : 0) + '%';
   document.getElementById('statStreak').textContent = stats.streak;
   document.getElementById('monthInfo').textContent = `${monthName} ${YEAR} — ${numDays} days`;
 
-  // Attach checkbox listeners
-  document.querySelectorAll('.cb:not(.disabled)').forEach(cb => {
+  document.querySelectorAll('.cb').forEach(cb => {
     cb.addEventListener('click', () => {
-      const metric = cb.dataset.metric;
-      const day = cb.dataset.day;
-      const month = cb.dataset.month;
-      const newVal = !getChecked(month, metric, day);
-      setChecked(month, metric, day, newVal);
+      const newVal = !getChecked(cb.dataset.month, cb.dataset.metric, cb.dataset.day);
+      setChecked(cb.dataset.month, cb.dataset.metric, cb.dataset.day, newVal);
       render(monthIdx);
     });
   });
 }
 
-// Initialize month selector
 const select = document.getElementById('monthSelect');
-MONTHS.forEach((m, i) => {
-  const opt = document.createElement('option');
-  opt.value = i;
-  opt.textContent = m;
-  select.appendChild(opt);
-});
-
-// Default to current month
+MONTHS.forEach((m, i) => { const o = document.createElement('option'); o.value = i; o.textContent = m; select.appendChild(o); });
 const now = new Date();
-const defaultMonth = (now.getFullYear() === YEAR) ? now.getMonth() : 0;
-select.value = defaultMonth;
-
+select.value = (now.getFullYear() === YEAR) ? now.getMonth() : 0;
 select.addEventListener('change', () => render(parseInt(select.value)));
-render(defaultMonth);
+render(parseInt(select.value));
 </script>
 </body>
 </html>
